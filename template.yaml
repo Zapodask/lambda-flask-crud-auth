@@ -36,6 +36,24 @@ Resources:
               - sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  -
+                    dynamodb:PutItem
+                  -
+                    dynamodb:DeleteItem
+                  -
+                    dynamodb:GetItem
+                  -
+                    dynamodb:Scan
+                  -
+                    dynamodb:UpdateItem
+                Resource: !GetAtt dynamoDbUsersTable.Arn
 
   lambdaFunction:
     Type: AWS::Lambda::Function
@@ -97,6 +115,55 @@ Resources:
           - lambdaArn: !GetAtt lambdaFunction.Arn
       ResourceId: !GetAtt apiGateway.RootResourceId
       RestApiId: !Ref apiGateway
+  
+  idResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt apiGateway.RootResourceId
+      PathPart: '{id}'
+      RestApiId: !Ref apiGateway
+
+  idMethodGet:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: GET
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt lambdaFunction.Arn
+      ResourceId: !Ref idResource
+      RestApiId: !Ref apiGateway
+
+  idMethodPut:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: PUT
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt lambdaFunction.Arn
+      ResourceId: !Ref idResource
+      RestApiId: !Ref apiGateway
+
+  idMethodDelete:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: DELETE
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt lambdaFunction.Arn
+      ResourceId: !Ref idResource
+      RestApiId: !Ref apiGateway
 
   apiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -107,7 +174,7 @@ Resources:
       RestApiId: !Ref apiGateway
       StageName: !Ref apiGatewayStageName
 
-  lambdaApiGatewayInvokeGet:
+  lambdaInvokeRootGet:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
@@ -115,7 +182,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/
 
-  lambdaApiGatewayInvokePost:
+  lambdaInvokeRootPost:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
@@ -123,4 +190,48 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/
 
+  lambdaInvokeIdGet:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt lambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/{id}
 
+  lambdaInvokeIdPut:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt lambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/PUT/{id}
+
+  lambdaInvokeIdDelete:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt lambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/DELETE/{id}
+
+  dynamoDbUsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${projectName}-users
+      AttributeDefinitions: 
+        - 
+          AttributeName: username
+          AttributeType: S
+        - 
+          AttributeName: password
+          AttributeType: S
+        - 
+          AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        -
+          AttributeName: "username"
+          KeyType: "HASH"
+      ProvisionedThroughput: 
+        ReadCapacityUnits: 10
+        WriteCapacityUnits: 10
