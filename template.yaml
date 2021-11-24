@@ -68,11 +68,13 @@ Resources:
                   'body': json.dumps('Hello from Lambda!')
               }
       Description: Lambda function
-      FunctionName: !Ref projectName
+      FunctionName: !Sub ${projectName}-auth
       Handler: index.handler
-      MemorySize: 128
       Role: !GetAtt lambdaIAMRole.Arn
       Runtime: python3.9
+      Environment:
+        Variables: 
+          PROJECT_NAME: !Ref projectName
 
   lambdaLogGroup:
     Type: AWS::Logs::LogGroup
@@ -88,7 +90,14 @@ Resources:
           - REGIONAL
       Name: !Ref projectName
 
-  apiGatewayRootMethodGet:
+  usersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !GetAtt apiGateway.RootResourceId
+      PathPart: users
+      RestApiId: !Ref apiGateway
+
+  apiGatewayUsersMethodGet:
     Type: AWS::ApiGateway::Method
     Properties:
       AuthorizationType: NONE
@@ -99,10 +108,10 @@ Resources:
         Uri: !Sub
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
           - lambdaArn: !GetAtt lambdaFunction.Arn
-      ResourceId: !GetAtt apiGateway.RootResourceId
+      ResourceId: !Ref usersResource
       RestApiId: !Ref apiGateway
 
-  apiGatewayRootMethodPost:
+  apiGatewayUsersMethodPost:
     Type: AWS::ApiGateway::Method
     Properties:
       AuthorizationType: NONE
@@ -113,17 +122,17 @@ Resources:
         Uri: !Sub
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
           - lambdaArn: !GetAtt lambdaFunction.Arn
-      ResourceId: !GetAtt apiGateway.RootResourceId
+      ResourceId: !Ref usersResource
       RestApiId: !Ref apiGateway
   
-  idResource:
+  usersIdResource:
     Type: AWS::ApiGateway::Resource
     Properties: 
-      ParentId: !GetAtt apiGateway.RootResourceId
+      ParentId: !Ref usersResource
       PathPart: '{id}'
       RestApiId: !Ref apiGateway
 
-  idMethodGet:
+  usersIdMethodGet:
     Type: AWS::ApiGateway::Method
     Properties:
       AuthorizationType: NONE
@@ -134,10 +143,10 @@ Resources:
         Uri: !Sub
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
           - lambdaArn: !GetAtt lambdaFunction.Arn
-      ResourceId: !Ref idResource
+      ResourceId: !Ref usersIdResource
       RestApiId: !Ref apiGateway
 
-  idMethodPut:
+  usersIdMethodPut:
     Type: AWS::ApiGateway::Method
     Properties:
       AuthorizationType: NONE
@@ -148,10 +157,10 @@ Resources:
         Uri: !Sub
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
           - lambdaArn: !GetAtt lambdaFunction.Arn
-      ResourceId: !Ref idResource
+      ResourceId: !Ref usersIdResource
       RestApiId: !Ref apiGateway
 
-  idMethodDelete:
+  usersIdMethodDelete:
     Type: AWS::ApiGateway::Method
     Properties:
       AuthorizationType: NONE
@@ -162,57 +171,60 @@ Resources:
         Uri: !Sub
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
           - lambdaArn: !GetAtt lambdaFunction.Arn
-      ResourceId: !Ref idResource
+      ResourceId: !Ref usersIdResource
       RestApiId: !Ref apiGateway
 
   apiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - apiGatewayRootMethodGet
-      - apiGatewayRootMethodPost
+      - apiGatewayUsersMethodGet
+      - apiGatewayUsersMethodPost
+      - usersIdMethodGet
+      - usersIdMethodPut
+      - usersIdMethodDelete
     Properties:
       RestApiId: !Ref apiGateway
       StageName: !Ref apiGatewayStageName
 
-  lambdaInvokeRootGet:
+  lambdaInvokeUsersGet:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/users
 
-  lambdaInvokeRootPost:
+  lambdaInvokeUsersPost:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/users
 
-  lambdaInvokeIdGet:
+  lambdaInvokeUsersIdGet:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/{id}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/users/{id}
 
-  lambdaInvokeIdPut:
+  lambdaInvokeUsersIdPut:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/PUT/{id}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/PUT/users/{id}
 
-  lambdaInvokeIdDelete:
+  lambdaInvokeUsersIdDelete:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/DELETE/{id}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/DELETE/users/{id}
 
   dynamoDbUsersTable:
     Type: AWS::DynamoDB::Table
@@ -222,16 +234,10 @@ Resources:
         - 
           AttributeName: username
           AttributeType: S
-        - 
-          AttributeName: password
-          AttributeType: S
-        - 
-          AttributeName: created_at
-          AttributeType: S
       KeySchema:
         -
-          AttributeName: "username"
-          KeyType: "HASH"
+          AttributeName: username
+          KeyType: HASH
       ProvisionedThroughput: 
         ReadCapacityUnits: 10
         WriteCapacityUnits: 10

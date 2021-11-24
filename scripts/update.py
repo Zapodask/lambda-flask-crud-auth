@@ -56,7 +56,7 @@ class update():
     
     def updateLambda(self):
         lambda_client.update_function_code(
-            FunctionName=project_name,
+            FunctionName=f'{project_name}-auth',
             S3Bucket=bucket_name,
             S3Key='build.zip',
             Publish=True,

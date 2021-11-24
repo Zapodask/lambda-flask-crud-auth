@@ -4,9 +4,15 @@ from boto3 import resource
 from datetime import datetime
 from pytz import timezone
 
+from dotenv import load_dotenv
+
+import os
+
+load_dotenv()
+project_name = os.getenv('PROJECT_NAME')
 
 dynamodb = resource('dynamodb')
-table = dynamodb.Table('table')
+table = dynamodb.Table(f'{project_name}-users')
 
 users = Namespace('users/', description='Users')
 
