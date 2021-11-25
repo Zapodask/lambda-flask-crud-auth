@@ -129,7 +129,7 @@ Resources:
     Type: AWS::ApiGateway::Resource
     Properties: 
       ParentId: !Ref usersResource
-      PathPart: '{id}'
+      PathPart: '{username}'
       RestApiId: !Ref apiGateway
 
   usersIdMethodGet:
@@ -208,7 +208,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/users/{id}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/users/{username}
 
   lambdaInvokeUsersIdPut:
     Type: AWS::Lambda::Permission
@@ -216,7 +216,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/PUT/users/{id}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/PUT/users/{username}
 
   lambdaInvokeUsersIdDelete:
     Type: AWS::Lambda::Permission
@@ -224,7 +224,7 @@ Resources:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/DELETE/users/{id}
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/DELETE/users/{username}
 
   dynamoDbUsersTable:
     Type: AWS::DynamoDB::Table
