@@ -146,20 +146,6 @@ Resources:
       ResourceId: !Ref usersIdResource
       RestApiId: !Ref apiGateway
 
-  usersIdMethodPut:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizationType: NONE
-      HttpMethod: PUT
-      Integration:
-        IntegrationHttpMethod: POST
-        Type: AWS_PROXY
-        Uri: !Sub
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
-          - lambdaArn: !GetAtt lambdaFunction.Arn
-      ResourceId: !Ref usersIdResource
-      RestApiId: !Ref apiGateway
-
   usersIdMethodDelete:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -174,14 +160,35 @@ Resources:
       ResourceId: !Ref usersIdResource
       RestApiId: !Ref apiGateway
 
+  loginResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt usersResource
+      PathPart: login
+      RestApiId: !Ref apiGateway
+
+  loginMethodPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt lambdaFunction.Arn
+      ResourceId: !Ref loginResource
+      RestApiId: !Ref apiGateway
+
   apiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - apiGatewayUsersMethodGet
       - apiGatewayUsersMethodPost
       - usersIdMethodGet
-      - usersIdMethodPut
       - usersIdMethodDelete
+      - loginMethodPost
     Properties:
       RestApiId: !Ref apiGateway
       StageName: !Ref apiGatewayStageName
@@ -210,14 +217,6 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/GET/users/{username}
 
-  lambdaInvokeUsersIdPut:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt lambdaFunction.Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/PUT/users/{username}
-
   lambdaInvokeUsersIdDelete:
     Type: AWS::Lambda::Permission
     Properties:
@@ -225,6 +224,15 @@ Resources:
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/DELETE/users/{username}
+
+  lambdaInvokeUsersLoginPost:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt lambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/login/
+
 
   dynamoDbUsersTable:
     Type: AWS::DynamoDB::Table
