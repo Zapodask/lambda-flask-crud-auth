@@ -6,33 +6,31 @@ from datetime import timedelta, datetime
 from pytz import timezone
 from dotenv import load_dotenv
 from boto3 import resource
-import os
+from os import getenv
+from werkzeug.security import generate_password_hash, check_password_hash
 
-from flask_jwt_extended import create_access_token, create_refresh_token, jwt_required, get_jwt_identity
-
-from werkzeug.security import check_password_hash
+from flask_jwt_extended import create_access_token, create_refresh_token, get_jwt_identity
+from .services.auth import auth_verify
 
 from .namespaces.users import users as nsUsers
 
 load_dotenv()
-project_name = os.getenv('PROJECT_NAME')
+project_name = getenv('PROJECT_NAME')
+jwt_secret_key = getenv('JWT_SECRET_KEY')
 
 dynamodb = resource('dynamodb')
 
-
 table = dynamodb.Table(f'{project_name}-users')
 
-load_dotenv()
-jwt_secret_key = os.getenv('JWT_SECRET_KEY')
 
 app = Flask(__name__)
 CORS(app)
 api = Api(app)
 
 app.config["JWT_SECRET_KEY"] = jwt_secret_key
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
-app.config["JWT_REFRESH_TOKEN_EXPIRES"] = timedelta(days=30)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(days=1)
 jwt = JWTManager(app)
+
 
 # Namespaces
 api.add_namespace(nsUsers)
@@ -70,58 +68,33 @@ class Login(Resource):
             else:
                 return 'User not found', 400
 
-# @api.route('/refresh-token')
-# @jwt_required(refresh=True)
-# class RefreshToken(Resource):
-#     @api.doc('refresh_token')
-#     def post(self):
-#         identity = get_jwt_identity()
-#         access_token = create_access_token(identity=identity)
-#         refresh_token = create_refresh_token(identity=identity)
-#         return {'access_token': access_token, 'refresh_token': refresh_token}
+@api.route('/change-password')
+class ChangePassword(Resource):
+    @api.doc('change_password')
+    @auth_verify(api)
+    def put(self):
+        identity = get_jwt_identity()
+        data = request.get_json()
 
-
-# @api.route('/change-password')
-# @jwt_required()
-# class ChangePassword(Resource):
-#     @api.doc('change_password')
-#     def put(self):
-#         identity = get_jwt_identity()
-#         data = request.get_json()
-
-#         if 'password' not in data:
-#             return 'Missing password'
+        if 'new_password' not in data:
+            return 'Missing new password'
         
-#         if 'new_password' not in data:
-#             'Missing new password'
-        
-#         if 'new_password_confirmation' not in data:
-#             'Missing new password confirmation'
+        if 'new_password_confirmation' not in data:
+            return 'Missing new password confirmation'
 
-#         response = table.get_item(
-#             Key={
-#                 'username': identity
-#             }
-#         )
+        data['updated_at'] = str(datetime.now(timezone('America/Sao_Paulo')))
 
-#         item = response['Item']
+        data['password'] = generate_password_hash(data['new_password'])
 
-#         check = check_password_hash(item['password'], data['password'])
+        table.update_item(
+            Key={
+                'username': identity
+            },
+            UpdateExpression='set password=:p, updated_at=:a',
+            ExpressionAttributeValues={
+                ':p': data['password'],
+                ':a': data['updated_at']
+            }
+        )
 
-#         if check != True:
-#             return 'Wrong password', 400
-
-#         data['updated_at'] = str(datetime.now(timezone('America/Sao_Paulo')))
-
-#         table.update_item(
-#             Key={
-#                 'username': identity
-#             },
-#             UpdateExpression='set password=:p, updated_at=:a',
-#             ExpressionAttributeValues={
-#                 ':p': data['new_password'],
-#                 ':a': data['updated_at']
-#             }
-#         )
-
-#         return 'Password changed', 200
+        return 'Password changed', 200

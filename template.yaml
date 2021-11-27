@@ -6,6 +6,10 @@ Parameters:
     Type: String
     AllowedPattern: "[a-zA-Z0-9]+[a-zA-Z0-9-]+[a-zA-Z0-9]+"
     Default: my-project
+  jwtSecretKey:
+    Type: String
+    AllowedPattern: "[a-zA-Z0-9]+[a-zA-Z0-9-]+[a-zA-Z0-9]+"
+    Default: KIJUHYTR5ET4RTGY7
   bucketName:
     Type: String
     AllowedPattern: "[a-zA-Z0-9]+[a-zA-Z0-9-]+[a-zA-Z0-9]+"
@@ -79,9 +83,8 @@ Resources:
       Environment:
         Variables: 
           PROJECT_NAME: !Ref projectName
-          JWT_SECRET_KEY: IUYGTFVHIUIJ095U389HRFN
-          JWT_ACCESS_TOKEN_EXPIRES: '1:00:00'
-          JWT_REFRESH_TOKEN_EXPIRES: '30 days, 0:00:00'
+          JWT_SECRET_KEY: !Ref jwtSecretKey
+          JWT_REFRESH_TOKEN_EXPIRES: '1 day, 0:00:00'
 
 ## Logs
   lambdaLogGroup:
@@ -119,13 +122,6 @@ Resources:
     Properties:
       ParentId: !GetAtt apiGateway.RootResourceId
       PathPart: login
-      RestApiId: !Ref apiGateway
-
-  refreshTokenResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      ParentId: !GetAtt apiGateway.RootResourceId
-      PathPart: refresh-token
       RestApiId: !Ref apiGateway
 
   changePasswordResource:
@@ -206,20 +202,6 @@ Resources:
       ResourceId: !Ref loginResource
       RestApiId: !Ref apiGateway
 
-  refreshTokenMethodPost:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      AuthorizationType: NONE
-      HttpMethod: POST
-      Integration:
-        IntegrationHttpMethod: POST
-        Type: AWS_PROXY
-        Uri: !Sub
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
-          - lambdaArn: !GetAtt lambdaFunction.Arn
-      ResourceId: !Ref refreshTokenResource
-      RestApiId: !Ref apiGateway
-
   changePasswordMethodPost:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -243,7 +225,6 @@ Resources:
       - usersIdMethodGet
       - usersIdMethodDelete
       - loginMethodPost
-      - refreshTokenMethodPost
       - changePasswordMethodPost
     Properties:
       RestApiId: !Ref apiGateway
@@ -289,14 +270,6 @@ Resources:
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/login
-
-  lambdaInvokeRefreshTokenPost:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: !GetAtt lambdaFunction.Arn
-      Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/refresh-token
 
   lambdaInvokeChangePasswordPost:
     Type: AWS::Lambda::Permission

@@ -1,3 +1,4 @@
+import re
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from datetime import datetime
@@ -6,7 +7,10 @@ from boto3 import resource
 from dotenv import load_dotenv
 import os
 
+from flask_jwt_extended import get_jwt_identity
 from werkzeug.security import generate_password_hash
+
+from ..services.auth import auth_verify
 
 
 load_dotenv()
@@ -23,9 +27,8 @@ users = Namespace('users', description='Users routes')
 
 userModel = users.model('User', {
     'username': fields.String(),
-    'password': fields.String(),
-    'created_at': fields.String(readonly=True),
-    'updated_at': fields.String(readonly=True)
+    'created_at': fields.String(),
+    'updated_at': fields.String()
 })
 
 
@@ -33,15 +36,27 @@ userModel = users.model('User', {
 class Index(Resource):
     @users.doc('list_users')
     @users.marshal_list_with(userModel)
+    @auth_verify(users)
     def get(self):
         response = table.scan()
 
         return response['Items'], 200
 
     @users.doc('store_user')
-    @users.expect(userModel)
     def post(self):
         data = request.get_json()
+
+        if 'username' not in data:
+            return 'Missing username', 400
+
+        if 'password' not in data:
+            return 'Missing password', 400
+
+        if 'password_confirmation' not in data:
+            return 'Missing password_confirmation', 400
+
+        if data['password'] != data['password_confirmation']:
+            return 'Passwords do not match', 400
 
         data['password'] = generate_password_hash(data['password'])
 
@@ -67,6 +82,7 @@ class Index(Resource):
 class Id(Resource):
     @users.doc('show_user')
     @users.marshal_with(userModel)
+    @auth_verify(users)
     def get(self, username):
         username = username.replace('%20', ' ')
 
@@ -82,8 +98,13 @@ class Id(Resource):
             users.abort(404, 'User not found')
 
     @users.doc('delete_user')
+    @auth_verify(users)
     def delete(self, username):
         username = username.replace('%20', ' ')
+        identity = get_jwt_identity()
+
+        if identity != username:
+            return 'Only the user can delete himself', 400
 
         table.delete_item(
             Key={
@@ -92,7 +113,3 @@ class Id(Resource):
         )
 
         return 'User deleted', 204
-
-
-
-
