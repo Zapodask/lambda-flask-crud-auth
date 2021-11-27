@@ -16,11 +16,14 @@ Parameters:
     Default: dev
 
 Resources:
+# Lambda
+## Code bucket
   bucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Ref bucketName
 
+## IAM role
   lambdaIAMRole:
     Type: AWS::IAM::Role
     Properties:
@@ -55,6 +58,7 @@ Resources:
                     dynamodb:UpdateItem
                 Resource: !GetAtt dynamoDbUsersTable.Arn
 
+## Function
   lambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
@@ -75,13 +79,18 @@ Resources:
       Environment:
         Variables: 
           PROJECT_NAME: !Ref projectName
+          JWT_SECRET_KEY: IUYGTFVHIUIJ095U389HRFN
+          JWT_ACCESS_TOKEN_EXPIRES: '1:00:00'
+          JWT_REFRESH_TOKEN_EXPIRES: '30 days, 0:00:00'
 
+## Logs
   lambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: !Sub /aws/lambda/${projectName}
       RetentionInDays: 90
 
+# Api Gateway
   apiGateway:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -90,6 +99,7 @@ Resources:
           - REGIONAL
       Name: !Ref projectName
 
+## Resources
   usersResource:
     Type: AWS::ApiGateway::Resource
     Properties: 
@@ -97,7 +107,36 @@ Resources:
       PathPart: users
       RestApiId: !Ref apiGateway
 
-  apiGatewayUsersMethodGet:
+  usersIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties: 
+      ParentId: !Ref usersResource
+      PathPart: '{username}'
+      RestApiId: !Ref apiGateway
+
+  loginResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt apiGateway.RootResourceId
+      PathPart: login
+      RestApiId: !Ref apiGateway
+
+  refreshTokenResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt apiGateway.RootResourceId
+      PathPart: refresh-token
+      RestApiId: !Ref apiGateway
+
+  changePasswordResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt apiGateway.RootResourceId
+      PathPart: change-password
+      RestApiId: !Ref apiGateway
+
+## Methods
+  usersMethodGet:
     Type: AWS::ApiGateway::Method
     Properties:
       AuthorizationType: NONE
@@ -111,7 +150,7 @@ Resources:
       ResourceId: !Ref usersResource
       RestApiId: !Ref apiGateway
 
-  apiGatewayUsersMethodPost:
+  usersMethodPost:
     Type: AWS::ApiGateway::Method
     Properties:
       AuthorizationType: NONE
@@ -123,13 +162,6 @@ Resources:
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
           - lambdaArn: !GetAtt lambdaFunction.Arn
       ResourceId: !Ref usersResource
-      RestApiId: !Ref apiGateway
-  
-  usersIdResource:
-    Type: AWS::ApiGateway::Resource
-    Properties: 
-      ParentId: !Ref usersResource
-      PathPart: '{username}'
       RestApiId: !Ref apiGateway
 
   usersIdMethodGet:
@@ -160,13 +192,6 @@ Resources:
       ResourceId: !Ref usersIdResource
       RestApiId: !Ref apiGateway
 
-  loginResource:
-    Type: AWS::ApiGateway::Resource
-    Properties:
-      ParentId: !GetAtt usersResource
-      PathPart: login
-      RestApiId: !Ref apiGateway
-
   loginMethodPost:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -181,18 +206,50 @@ Resources:
       ResourceId: !Ref loginResource
       RestApiId: !Ref apiGateway
 
+  refreshTokenMethodPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt lambdaFunction.Arn
+      ResourceId: !Ref refreshTokenResource
+      RestApiId: !Ref apiGateway
+
+  changePasswordMethodPost:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: PUT
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaArn}/invocations
+          - lambdaArn: !GetAtt lambdaFunction.Arn
+      ResourceId: !Ref changePasswordResource
+      RestApiId: !Ref apiGateway
+
+## Deployment
   apiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - apiGatewayUsersMethodGet
-      - apiGatewayUsersMethodPost
+      - usersMethodGet
+      - usersMethodPost
       - usersIdMethodGet
       - usersIdMethodDelete
       - loginMethodPost
+      - refreshTokenMethodPost
+      - changePasswordMethodPost
     Properties:
       RestApiId: !Ref apiGateway
       StageName: !Ref apiGatewayStageName
 
+## Lambda permissions
   lambdaInvokeUsersGet:
     Type: AWS::Lambda::Permission
     Properties:
@@ -225,15 +282,31 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/DELETE/users/{username}
 
-  lambdaInvokeUsersLoginPost:
+  lambdaInvokeLoginPost:
     Type: AWS::Lambda::Permission
     Properties:
       Action: lambda:InvokeFunction
       FunctionName: !GetAtt lambdaFunction.Arn
       Principal: apigateway.amazonaws.com
-      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/login/
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/login
 
+  lambdaInvokeRefreshTokenPost:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt lambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/POST/refresh-token
 
+  lambdaInvokeChangePasswordPost:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt lambdaFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${apiGateway}/${apiGatewayStageName}/PUT/change-password
+
+# DynamoDB table
   dynamoDbUsersTable:
     Type: AWS::DynamoDB::Table
     Properties:
