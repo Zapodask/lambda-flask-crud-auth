@@ -20,9 +20,9 @@
 | users/ | GET | No | Yes |
 | users/ | POST | username, password, password_confirmation | No |
 | users/{username} | GET | No | Yes |
-| users/{username} | GET | No | Yes |
-| login | GET | username, password | No |
-| change-password | GET | new_password, new_password_confirmation | yes |
+| users/{username} | DELETE | No | Yes |
+| login | POST | username, password | No |
+| change-password | PUT | new_password, new_password_confirmation | yes |
 
 
 ## License
